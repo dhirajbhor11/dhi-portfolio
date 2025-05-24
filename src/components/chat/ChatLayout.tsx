@@ -148,7 +148,7 @@ export function ChatLayout() {
       setIsLoading(false);
       // Save the final assistant message (which might be an error message from the catch block)
       const finalAssistantMessageInState = messagesRef.current.find(msg => msg.id === assistantMessageId);
-      if (currentUser?.uid && finalAssistantMessageInState && finalAssistantMessageInState.content) {
+      if (currentUser?.uid && finalAssistantMessageInState) { // Changed condition here
         addMessageToHistory(currentUser.uid, finalAssistantMessageInState)
           .catch(saveError => {
             console.error("Failed to save assistant's final message to history:", saveError);
