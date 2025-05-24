@@ -1,9 +1,10 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
 import { ChatMessages } from "./ChatMessages";
 import { ChatInput } from "./ChatInput";
-import { TypingIndicator } from "./TypingIndicator";
+// import { TypingIndicator } from "./TypingIndicator"; // Removed as per request
 import { QuickPrompts } from "./QuickPrompts";
 import type { Message } from "./ChatMessage";
 import { useToast } from "@/hooks/use-toast";
@@ -137,7 +138,7 @@ export function ChatLayout() {
         </div>
       </CardHeader>
       <ChatMessages messages={messages} isLoading={isLoading} />
-      {isLoading && <TypingIndicator />}
+      {/* {isLoading && <TypingIndicator />} Removed as per request */}
       {!isLoading && messages.length <= 1 && ( /* Show prompts if only welcome message or empty */
         <QuickPrompts onPromptClick={handlePromptClick} />
       )}

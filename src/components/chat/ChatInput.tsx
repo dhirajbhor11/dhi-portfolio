@@ -1,9 +1,10 @@
+
 "use client";
 
 import { useState, type FormEvent } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { SendHorizonal } from "lucide-react";
+import { SendHorizonal, Loader2 } from "lucide-react";
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
@@ -35,8 +36,12 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
         className="flex-grow"
         aria-label="Chat message input"
       />
-      <Button type="submit" size="icon" disabled={isLoading || !inputValue.trim()} aria-label="Send message">
-        <SendHorizonal className="h-5 w-5" />
+      <Button type="submit" size="icon" disabled={isLoading || !inputValue.trim()} aria-label={isLoading ? "Sending message" : "Send message"}>
+        {isLoading ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <SendHorizonal className="h-5 w-5" />
+        )}
       </Button>
     </form>
   );
