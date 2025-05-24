@@ -39,6 +39,7 @@ export function ChatLayout() {
           if (history.length > 0) {
             setMessages(history);
           } else {
+            // If no history, or an empty history array was returned, start with welcome.
             setMessages([initialWelcomeMessage]);
           }
         })
@@ -47,18 +48,19 @@ export function ChatLayout() {
           setMessages([initialWelcomeMessage]); 
           toast({
             variant: "destructive",
-            title: "Error",
-            description: "Could not load chat history.",
+            title: "Error Loading History",
+            description: "Could not load previous chat history.",
           });
         })
         .finally(() => {
           setIsLoading(false);
         });
     } else {
+      // No current user, reset to initial welcome message.
       setMessages([initialWelcomeMessage]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.uid, toast]); // Added toast to dependencies as it's used inside
+  }, [currentUser?.uid, toast]); 
 
 
   const handleSendMessage = useCallback(async (inputText: string) => {
@@ -76,13 +78,19 @@ export function ChatLayout() {
         await addMessageToHistory(currentUser.uid, newUserMessage);
       } catch (error) {
         console.error("Failed to save user message to history:", error);
-        // Non-critical, chat can continue
+        toast({
+          variant: "destructive",
+          title: "History Save Error",
+          description: "Could not save your message to history.",
+        });
+        // Non-critical for chat flow, but user should be aware.
       }
     }
 
     let assistantResponse = "";
     const assistantMessageId = (Date.now() + 1).toString();
 
+    // Add placeholder for assistant's message
     setMessages((prevMessages) => [
       ...prevMessages,
       { id: assistantMessageId, role: "assistant", content: "" },
@@ -122,31 +130,38 @@ export function ChatLayout() {
       }
     } catch (error) {
       console.error("Error fetching AI response:", error);
-      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
+      const errorMessageContent = error instanceof Error ? error.message : "An unexpected error occurred.";
+      // Update the placeholder with the error message
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
           msg.id === assistantMessageId
-            ? { ...msg, content: `Sorry, I encountered an error: ${errorMessage}` }
+            ? { ...msg, content: `Sorry, I encountered an error: ${errorMessageContent}` }
             : msg
         )
       );
       toast({
         variant: "destructive",
-        title: "Error",
-        description: `Failed to get response: ${errorMessage}`,
+        title: "AI Response Error",
+        description: `Failed to get response: ${errorMessageContent}`,
       });
     } finally {
       setIsLoading(false);
-      // Save the final assistant message (or error message) to history
+      // Save the final assistant message (which might be an error message from the catch block)
       const finalAssistantMessageInState = messagesRef.current.find(msg => msg.id === assistantMessageId);
       if (currentUser?.uid && finalAssistantMessageInState && finalAssistantMessageInState.content) {
-        addMessageToHistory(currentUser.uid, finalAssistantMessageInState).catch(error => {
-            console.error("Failed to save assistant's final message to history:", error);
-        });
+        addMessageToHistory(currentUser.uid, finalAssistantMessageInState)
+          .catch(saveError => {
+            console.error("Failed to save assistant's final message to history:", saveError);
+            toast({
+              variant: "destructive",
+              title: "History Save Error",
+              description: "Could not save assistant's response to history.",
+            });
+          });
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast, currentUser]); // currentUser is in deps for uid and display name
+  }, [toast, currentUser]); 
 
 
   const handlePromptClick = (prompt: string) => {
@@ -164,11 +179,12 @@ export function ChatLayout() {
             </div>
         </div>
       </CardHeader>
-      <ChatMessages messages={messages} isLoading={isLoading && messages.length === 0} />
-      {!isLoading && messages.length <= 1 && ( 
+      <ChatMessages messages={messages} isLoading={isLoading && messages.length === 0 && !!currentUser?.uid} />
+      {!isLoading && messages.length <= 1 && !!currentUser?.uid && ( 
         <QuickPrompts onPromptClick={handlePromptClick} />
       )}
       <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
     </div>
   );
 }
+
