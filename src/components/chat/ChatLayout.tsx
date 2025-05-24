@@ -4,13 +4,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { ChatMessages } from "./ChatMessages";
 import { ChatInput } from "./ChatInput";
-// import { TypingIndicator } from "./TypingIndicator"; // Removed as per request
 import { QuickPrompts } from "./QuickPrompts";
 import type { Message } from "./ChatMessage";
 import { useToast } from "@/hooks/use-toast";
-import { ShieldAlert } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { BotIcon } from "@/components/icons/BotIcon";
+import { useAuth } from "@/contexts/AuthContext";
+import { addPromptToHistory, getPromptHistory } from "@/services/firestoreService";
+
 
 const initialWelcomeMessage: Message = {
   id: "welcome-message",
@@ -22,6 +23,7 @@ export function ChatLayout() {
   const [messages, setMessages] = useState<Message[]>([initialWelcomeMessage]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { currentUser } = useAuth(); // Get current user
 
   // Load messages from sessionStorage on mount
   useEffect(() => {
@@ -40,7 +42,7 @@ export function ChatLayout() {
          setMessages([initialWelcomeMessage]);
       }
     }
-  }, []);
+  }, []); // Removed messages from dependency array to prevent re-triggering on messages change
 
   // Save messages to sessionStorage whenever they change
   useEffect(() => {
@@ -51,15 +53,37 @@ export function ChatLayout() {
     }
   }, [messages]);
 
+  // Example: Load prompt history on mount (optional, for now just logging)
+  useEffect(() => {
+    if (currentUser?.uid) {
+      getPromptHistory(currentUser.uid).then(history => {
+        // console.log("User prompt history:", history);
+        // You could use this history to populate quick prompts or for other features
+      }).catch(error => {
+        console.error("Failed to load prompt history:", error);
+      });
+    }
+  }, [currentUser]);
+
   const handleSendMessage = useCallback(async (inputText: string) => {
     const newUserMessage: Message = {
       id: Date.now().toString(),
       role: "user",
       content: inputText,
-      name: "User",
+      name: currentUser?.displayName || currentUser?.email || "User",
     };
     setMessages((prevMessages) => [...prevMessages, newUserMessage]);
     setIsLoading(true);
+
+    // Save prompt to Firestore history if user is logged in
+    if (currentUser?.uid) {
+      try {
+        await addPromptToHistory(currentUser.uid, inputText);
+      } catch (error) {
+        console.error("Failed to save prompt to history:", error);
+        // Non-critical error, chat can continue
+      }
+    }
 
     let assistantResponse = "";
     const assistantMessageId = (Date.now() + 1).toString();
@@ -119,7 +143,7 @@ export function ChatLayout() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, currentUser]);
 
 
   const handlePromptClick = (prompt: string) => {
@@ -138,8 +162,7 @@ export function ChatLayout() {
         </div>
       </CardHeader>
       <ChatMessages messages={messages} isLoading={isLoading} />
-      {/* {isLoading && <TypingIndicator />} Removed as per request */}
-      {!isLoading && messages.length <= 1 && ( /* Show prompts if only welcome message or empty */
+      {!isLoading && messages.length <= 1 && ( 
         <QuickPrompts onPromptClick={handlePromptClick} />
       )}
       <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
