@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ChatMessages } from "./ChatMessages";
 import { ChatInput } from "./ChatInput";
 import { QuickPrompts } from "./QuickPrompts";
@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { BotIcon } from "@/components/icons/BotIcon";
 import { useAuth } from "@/contexts/AuthContext";
-import { addPromptToHistory, getPromptHistory } from "@/services/firestoreService";
+import { addMessageToHistory, getChatHistory } from "@/services/firestoreService";
 
 
 const initialWelcomeMessage: Message = {
@@ -23,47 +23,43 @@ export function ChatLayout() {
   const [messages, setMessages] = useState<Message[]>([initialWelcomeMessage]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const { currentUser } = useAuth(); // Get current user
+  const { currentUser } = useAuth(); 
 
-  // Load messages from sessionStorage on mount
+  const messagesRef = useRef<Message[]>(messages);
   useEffect(() => {
-    try {
-      const storedMessages = sessionStorage.getItem("chatMessages");
-      if (storedMessages) {
-        const parsedMessages = JSON.parse(storedMessages);
-        if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
-          setMessages(parsedMessages);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load messages from session storage:", error);
-      // Fallback to initial message if loading fails or no messages
-      if(messages.length === 0) {
-         setMessages([initialWelcomeMessage]);
-      }
-    }
-  }, []); // Removed messages from dependency array to prevent re-triggering on messages change
-
-  // Save messages to sessionStorage whenever they change
-  useEffect(() => {
-    try {
-      sessionStorage.setItem("chatMessages", JSON.stringify(messages));
-    } catch (error) {
-      console.error("Failed to save messages to session storage:", error);
-    }
+    messagesRef.current = messages;
   }, [messages]);
 
-  // Example: Load prompt history on mount (optional, for now just logging)
+  // Load chat history from Firestore on mount or when user changes
   useEffect(() => {
     if (currentUser?.uid) {
-      getPromptHistory(currentUser.uid).then(history => {
-        // console.log("User prompt history:", history);
-        // You could use this history to populate quick prompts or for other features
-      }).catch(error => {
-        console.error("Failed to load prompt history:", error);
-      });
+      setIsLoading(true); 
+      getChatHistory(currentUser.uid)
+        .then(history => {
+          if (history.length > 0) {
+            setMessages(history);
+          } else {
+            setMessages([initialWelcomeMessage]);
+          }
+        })
+        .catch(error => {
+          console.error("Failed to load chat history:", error);
+          setMessages([initialWelcomeMessage]); 
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not load chat history.",
+          });
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    } else {
+      setMessages([initialWelcomeMessage]);
     }
-  }, [currentUser]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.uid, toast]); // Added toast to dependencies as it's used inside
+
 
   const handleSendMessage = useCallback(async (inputText: string) => {
     const newUserMessage: Message = {
@@ -75,20 +71,18 @@ export function ChatLayout() {
     setMessages((prevMessages) => [...prevMessages, newUserMessage]);
     setIsLoading(true);
 
-    // Save prompt to Firestore history if user is logged in
     if (currentUser?.uid) {
       try {
-        await addPromptToHistory(currentUser.uid, inputText);
+        await addMessageToHistory(currentUser.uid, newUserMessage);
       } catch (error) {
-        console.error("Failed to save prompt to history:", error);
-        // Non-critical error, chat can continue
+        console.error("Failed to save user message to history:", error);
+        // Non-critical, chat can continue
       }
     }
 
     let assistantResponse = "";
     const assistantMessageId = (Date.now() + 1).toString();
 
-    // Add a placeholder for the assistant's message
     setMessages((prevMessages) => [
       ...prevMessages,
       { id: assistantMessageId, role: "assistant", content: "" },
@@ -112,6 +106,7 @@ export function ChatLayout() {
       }
 
       const decoder = new TextDecoder();
+      // eslint-disable-next-line no-constant-condition
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -142,8 +137,16 @@ export function ChatLayout() {
       });
     } finally {
       setIsLoading(false);
+      // Save the final assistant message (or error message) to history
+      const finalAssistantMessageInState = messagesRef.current.find(msg => msg.id === assistantMessageId);
+      if (currentUser?.uid && finalAssistantMessageInState && finalAssistantMessageInState.content) {
+        addMessageToHistory(currentUser.uid, finalAssistantMessageInState).catch(error => {
+            console.error("Failed to save assistant's final message to history:", error);
+        });
+      }
     }
-  }, [toast, currentUser]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast, currentUser]); // currentUser is in deps for uid and display name
 
 
   const handlePromptClick = (prompt: string) => {
@@ -161,7 +164,7 @@ export function ChatLayout() {
             </div>
         </div>
       </CardHeader>
-      <ChatMessages messages={messages} isLoading={isLoading} />
+      <ChatMessages messages={messages} isLoading={isLoading && messages.length === 0} />
       {!isLoading && messages.length <= 1 && ( 
         <QuickPrompts onPromptClick={handlePromptClick} />
       )}

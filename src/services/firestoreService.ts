@@ -4,6 +4,7 @@ import type { User } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp, runTransaction, updateDoc, arrayUnion, arrayRemove, collection, query, orderBy, limit, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { DEFAULT_ROLE, type UserRole } from '@/config/roles';
+import type { Message } from '@/components/chat/ChatMessage'; // Import Message type
 
 export interface UserProfile {
   uid: string;
@@ -12,7 +13,7 @@ export interface UserProfile {
   role: UserRole;
   createdAt: any; // Firestore Timestamp
   photoURL?: string | null;
-  promptHistory?: string[];
+  chatHistory?: Message[]; // Changed from promptHistory to chatHistory, type is Message[]
 }
 
 export const createUserProfileDocument = async (userAuth: User, additionalData?: Partial<UserProfile>): Promise<UserProfile | null> => {
@@ -31,7 +32,7 @@ export const createUserProfileDocument = async (userAuth: User, additionalData?:
       role: additionalData?.role || DEFAULT_ROLE,
       createdAt,
       photoURL: photoURL || null,
-      promptHistory: [], // Initialize prompt history
+      chatHistory: [], // Initialize chatHistory
       ...additionalData,
     };
     try {
@@ -55,51 +56,51 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
   return null;
 };
 
-export const addPromptToHistory = async (uid: string, prompt: string): Promise<void> => {
-  if (!uid || !prompt) return;
-
+export const addMessageToHistory = async (uid: string, message: Message): Promise<void> => {
+  if (!uid || !message) return;
   const userRef = doc(db, 'users', uid);
+  const MAX_HISTORY_LENGTH = 20; // Store last 20 messages
 
   try {
     await runTransaction(db, async (transaction) => {
       const userDoc = await transaction.get(userRef);
       if (!userDoc.exists()) {
-        // This case should ideally not happen if profiles are created on auth
-        // For robustness, one might create a profile here or log an error
-        console.error("User profile does not exist for UID:", uid);
-        // Or throw new Error("User profile not found."); 
-        // Depending on how strictly we want to enforce profile existence.
-        // For now, we'll attempt to create a minimal history.
-         transaction.set(userRef, { promptHistory: [prompt] }, { merge: true });
+        console.warn("User profile does not exist for UID:", uid, "while trying to add message to history.");
+        // If profile doesn't exist, we might initialize it here or rely on createUserProfileDocument
+        // For now, we'll create it with the chat history if it's missing.
+        // This is a fallback, ideally createUserProfileDocument handles all creations.
+         transaction.set(userRef, { chatHistory: [message], uid: uid, createdAt: serverTimestamp(), role: DEFAULT_ROLE }, { merge: true });
         return;
       }
 
-      const currentData = userDoc.data() as UserProfile;
-      const currentHistory = currentData.promptHistory || [];
+      const userData = userDoc.data() as UserProfile;
+      const currentHistory = userData.chatHistory || [];
       
-      // Add new prompt to the beginning and keep only the last 10
-      const newHistory = [prompt, ...currentHistory].slice(0, 10);
+      // Add new message and keep only the most recent ones
+      const newHistory = [...currentHistory, message].slice(-MAX_HISTORY_LENGTH);
 
-      transaction.update(userRef, { promptHistory: newHistory });
+      transaction.update(userRef, { chatHistory: newHistory });
     });
   } catch (error) {
-    console.error("Error adding prompt to history:", error);
+    console.error("Error adding message to history:", error);
     // Optionally re-throw or handle as needed by the application
+    throw error;
   }
 };
 
-export const getPromptHistory = async (uid: string): Promise<string[]> => {
+export const getChatHistory = async (uid: string): Promise<Message[]> => {
   if (!uid) return [];
   try {
     const userRef = doc(db, 'users', uid);
     const userDoc = await getDoc(userRef);
     if (userDoc.exists()) {
       const userData = userDoc.data() as UserProfile;
-      return userData.promptHistory || [];
+      return userData.chatHistory || [];
     }
     return [];
   } catch (error) {
-    console.error("Error fetching prompt history:", error);
+    console.error("Error fetching chat history:", error);
     return [];
   }
 };
+
