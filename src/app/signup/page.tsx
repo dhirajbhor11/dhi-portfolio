@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import type { AuthError } from 'firebase/auth';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -58,6 +59,15 @@ export default function SignupPage() {
     await signUpWithEmail(data.email, data.password);
   };
 
+  const getCustomErrorMessage = (authError: AuthError | Error | null): string => {
+    if (!authError) return "An unexpected error occurred. Please try again.";
+    // Check if 'code' property exists and if it's the specific Firebase error
+    if ('code' in authError && (authError as AuthError).code === 'auth/email-already-in-use') {
+      return 'This email address is already in use. Please try logging in, or use a different email address.';
+    }
+    return authError.message || "An unexpected error occurred. Please try again.";
+  };
+
   return (
     <AuthFormWrapper
       title="Create an Account"
@@ -78,7 +88,7 @@ export default function SignupPage() {
               <Terminal className="h-4 w-4" />
               <AlertTitle>Signup Failed</AlertTitle>
               <AlertDescription>
-                 {error.message || "An unexpected error occurred. Please try again."}
+                 {getCustomErrorMessage(error)}
               </AlertDescription>
             </Alert>
           )}
