@@ -42,28 +42,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const clearError = () => setError(null);
 
-  const handleAuthError = (err: any) => {
+  const handleAuthError = (err: unknown) => {
     console.error("Auth Error:", err);
-    setError(err as AuthError);
+    // Firebase errors (AuthError) are instances of Error.
+    if (err instanceof Error) {
+      setError(err);
+    } else {
+      // Fallback for unexpected error types
+      setError(new Error('An unexpected error occurred. Check console for details.'));
+      console.error("Non-Error object thrown in auth:", err);
+    }
   };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (userAuth) => {
       setLoading(true);
-      setError(null);
+      setError(null); // Clear previous errors on auth state change
       if (userAuth) {
         setCurrentUser(userAuth);
         try {
-          const profile = await createUserProfileDocument(userAuth); // Ensures profile exists
-          if (profile) {
-            setUserProfile(profile);
-          } else {
-            // This case should ideally not happen if createUserProfileDocument works correctly
-             const fetchedProfile = await getUserProfile(userAuth.uid);
-             setUserProfile(fetchedProfile);
-          }
+          // createUserProfileDocument will get or create the profile.
+          // It's guaranteed to return a UserProfile object or throw an error
+          // because userAuth is confirmed to be non-null here.
+          const profile = await createUserProfileDocument(userAuth);
+          setUserProfile(profile);
         } catch (e) {
-            handleAuthError(e instanceof Error ? e : new Error('Failed to load user profile'));
+            handleAuthError(e); // Use refined error handler
             setUserProfile(null); // Clear profile on error
         }
       } else {
@@ -126,6 +130,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await firebaseSignOut(auth);
       setCurrentUser(null);
       setUserProfile(null);
+      // Clear chat messages from session storage on logout
+      sessionStorage.removeItem("chatMessages");
       router.push('/login');
     } catch (err) {
       handleAuthError(err);
@@ -154,3 +160,4 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
+
