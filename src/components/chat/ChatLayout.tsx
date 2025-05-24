@@ -25,6 +25,7 @@ export function ChatLayout() {
   const { toast } = useToast();
   const { currentUser } = useAuth(); 
 
+  // Ref to hold the latest messages, useful for async operations like saving history
   const messagesRef = useRef<Message[]>(messages);
   useEffect(() => {
     messagesRef.current = messages;
@@ -39,7 +40,6 @@ export function ChatLayout() {
           if (history.length > 0) {
             setMessages(history);
           } else {
-            // If no history, or an empty history array was returned, start with welcome.
             setMessages([initialWelcomeMessage]);
           }
         })
@@ -56,7 +56,6 @@ export function ChatLayout() {
           setIsLoading(false);
         });
     } else {
-      // No current user, reset to initial welcome message.
       setMessages([initialWelcomeMessage]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -83,14 +82,14 @@ export function ChatLayout() {
           title: "History Save Error",
           description: "Could not save your message to history.",
         });
-        // Non-critical for chat flow, but user should be aware.
       }
     }
 
-    let assistantResponse = "";
+    let assistantResponse = ""; // Accumulates the streamed response for UI update
     const assistantMessageId = (Date.now() + 1).toString();
+    let finalAssistantContentForHistory = ""; // Holds the definitive content for saving
 
-    // Add placeholder for assistant's message
+    // Add placeholder for assistant's message for immediate UI feedback
     setMessages((prevMessages) => [
       ...prevMessages,
       { id: assistantMessageId, role: "assistant", content: "" },
@@ -120,6 +119,7 @@ export function ChatLayout() {
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
         assistantResponse += chunk;
+        // Update UI progressively
         setMessages((prevMessages) =>
           prevMessages.map((msg) =>
             msg.id === assistantMessageId
@@ -128,10 +128,13 @@ export function ChatLayout() {
           )
         );
       }
+      finalAssistantContentForHistory = assistantResponse; // On success, this is the content to save
+
     } catch (error) {
       console.error("Error fetching AI response:", error);
       const errorMessageContent = error instanceof Error ? error.message : "An unexpected error occurred.";
-      // Update the placeholder with the error message
+      
+      // Update the UI placeholder with the error message
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
           msg.id === assistantMessageId
@@ -139,6 +142,8 @@ export function ChatLayout() {
             : msg
         )
       );
+      finalAssistantContentForHistory = `Sorry, I encountered an error: ${errorMessageContent}`; // On error, this is the content to save
+
       toast({
         variant: "destructive",
         title: "AI Response Error",
@@ -146,18 +151,27 @@ export function ChatLayout() {
       });
     } finally {
       setIsLoading(false);
-      // Save the final assistant message (which might be an error message from the catch block)
-      const finalAssistantMessageInState = messagesRef.current.find(msg => msg.id === assistantMessageId);
-      if (currentUser?.uid && finalAssistantMessageInState) { // Changed condition here
-        addMessageToHistory(currentUser.uid, finalAssistantMessageInState)
-          .catch(saveError => {
-            console.error("Failed to save assistant's final message to history:", saveError);
-            toast({
-              variant: "destructive",
-              title: "History Save Error",
-              description: "Could not save assistant's response to history.",
+      // Save the final assistant message using the definitive content
+      if (currentUser?.uid) {
+        const assistantMessageForHistory: Message = {
+          id: assistantMessageId,
+          role: "assistant",
+          content: finalAssistantContentForHistory, // Use the determined content
+        };
+        // Ensure content is not undefined or null before saving
+        if (typeof assistantMessageForHistory.content === 'string') {
+            addMessageToHistory(currentUser.uid, assistantMessageForHistory)
+            .catch(saveError => {
+                console.error("Failed to save assistant's final message to history:", saveError);
+                toast({
+                variant: "destructive",
+                title: "History Save Error",
+                description: "Could not save assistant's response to history.",
+                });
             });
-          });
+        } else {
+            console.warn("Attempted to save assistant message with undefined/null content. Message ID:", assistantMessageId);
+        }
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
