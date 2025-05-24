@@ -44,31 +44,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const handleAuthError = (err: unknown) => {
     console.error("Auth Error:", err);
-    // Firebase errors (AuthError) are instances of Error.
     if (err instanceof Error) {
-      setError(err);
+      setError(err as AuthError);
     } else {
-      // Fallback for unexpected error types
-      setError(new Error('An unexpected error occurred. Check console for details.'));
-      console.error("Non-Error object thrown in auth:", err);
+      setError(new Error('An unexpected error occurred. Check console for details.') as AuthError);
     }
   };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (userAuth) => {
       setLoading(true);
-      setError(null); // Clear previous errors on auth state change
+      setError(null); 
       if (userAuth) {
         setCurrentUser(userAuth);
         try {
-          // createUserProfileDocument will get or create the profile.
-          // It's guaranteed to return a UserProfile object or throw an error
-          // because userAuth is confirmed to be non-null here.
           const profile = await createUserProfileDocument(userAuth);
           setUserProfile(profile);
         } catch (e) {
-            handleAuthError(e); // Use refined error handler
-            setUserProfile(null); // Clear profile on error
+            handleAuthError(e); 
+            setUserProfile(null); 
         }
       } else {
         setCurrentUser(null);
@@ -86,7 +80,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      // onAuthStateChanged will handle setting user and profile
       router.push('/');
     } catch (err) {
       handleAuthError(err);
@@ -100,10 +93,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     try {
       await createUserWithEmailAndPassword(auth, email, password);
-      // onAuthStateChanged will handle setting user and profile
-      router.push('/');
-    } catch (err) {
-      handleAuthError(err);
+      // Successful creation: onAuthStateChanged handles profile and should lead to navigation.
+      // router.push('/'); // Let onAuthStateChanged and profile logic handle navigation
+    } catch (creationError: any) {
+      if (creationError.code === 'auth/email-already-in-use') {
+        setError(null); // Clear the "email-already-in-use" error message
+        try {
+          await signInWithEmail(email, password); // This will push to '/' on success
+          // If signInWithEmail is successful, navigation happens within it.
+        } catch (signInFailureError: any) {
+          // signInWithEmail re-threw an error (e.g., auth/wrong-password)
+          let autoLoginFailedMessage = "This email is already registered. Automatic login failed.";
+          if (signInFailureError.code === 'auth/wrong-password') {
+            autoLoginFailedMessage = "This email is already registered. We tried to log you in, but the password was incorrect. Please try logging in manually.";
+          } else if (signInFailureError.message) {
+            autoLoginFailedMessage = `This email is already registered. Automatic login failed: ${signInFailureError.message}`;
+          }
+          setError({ name: "AuthError", code: "auth/auto-login-failed", message: autoLoginFailedMessage } as AuthError);
+        }
+      } else {
+        // Other signup errors
+        handleAuthError(creationError);
+      }
     } finally {
       setLoading(false);
     }
@@ -114,10 +125,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // onAuthStateChanged will handle setting user and profile
       router.push('/');
     } catch (err) {
       handleAuthError(err);
+      throw err; // Re-throw the error to be caught by the caller if needed (e.g., signUpWithEmail)
     } finally {
       setLoading(false);
     }
@@ -130,7 +141,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await firebaseSignOut(auth);
       setCurrentUser(null);
       setUserProfile(null);
-      // Clear chat messages from session storage on logout
       sessionStorage.removeItem("chatMessages");
       router.push('/login');
     } catch (err) {
@@ -160,4 +170,3 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
-
