@@ -23,8 +23,10 @@ export function ChatLayout() {
   const [messages, setMessages] = useState<Message[]>([initialWelcomeMessage]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const { currentUser, userProfile } = useAuth(); 
+  const { currentUser, userProfile, incrementClientPromptsUsed } = useAuth(); 
 
+  // Ref to ensure the latest messages state is available in async callbacks if needed,
+  // though direct state usage in useCallback with proper dependencies is preferred.
   const messagesRef = useRef<Message[]>(messages);
   useEffect(() => {
     messagesRef.current = messages;
@@ -38,6 +40,7 @@ export function ChatLayout() {
           if (history.length > 0) {
             setMessages(history);
           } else {
+            // No history, or history is empty, set to welcome message
             setMessages([initialWelcomeMessage]);
           }
         })
@@ -58,7 +61,7 @@ export function ChatLayout() {
       setMessages([initialWelcomeMessage]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.uid]); // Dependency only on currentUser.uid
+  }, [currentUser?.uid, toast]); // Added toast to dependencies as it's used in .catch
 
 
   const handleSendMessage = useCallback(async (inputText: string) => {
@@ -71,18 +74,22 @@ export function ChatLayout() {
         return;
     }
 
-    // Use promptLimit and promptsUsed from userProfile.
-    // These values are from Firestore, reflecting the state *before* this current prompt.
-    const { promptLimit = 10, promptsUsed = 0 } = userProfile;
+    // Use promptLimit and promptsUsed directly from userProfile.
+    // These values should be numbers if profile is loaded correctly.
+    const promptLimit = typeof userProfile.promptLimit === 'number' ? userProfile.promptLimit : 10; // Default if not number
+    const promptsUsed = typeof userProfile.promptsUsed === 'number' ? userProfile.promptsUsed : 0; // Default if not number
 
-
+    if (typeof userProfile.promptLimit !== 'number' || typeof userProfile.promptsUsed !== 'number') {
+        console.warn("ChatLayout: promptLimit or promptsUsed is not a number in userProfile.", userProfile);
+    }
+    
     if (promptsUsed >= promptLimit) {
         toast({
             variant: "destructive",
             title: "Chat Limit Reached",
             description: `You have reached your ${promptLimit} prompt limit.`,
         });
-        return; // Stop processing if limit is reached
+        return; 
     }
 
     const newUserMessage: Message = {
@@ -95,11 +102,11 @@ export function ChatLayout() {
     setIsLoading(true);
 
     try {
-      // Saving user message will also increment promptsUsed in Firestore via addMessageToHistory
       await addMessageToHistory(currentUser.uid, newUserMessage);
-      // Note: userProfile in AuthContext might be stale regarding promptsUsed immediately after this.
-      // For subsequent checks within the same session, this is fine as it re-reads userProfile.
-      // For a more real-time update of promptsUsed in the UI (not the check itself), AuthContext would need to update.
+      // Increment client-side count if Firestore save was successful for a user message
+      if (newUserMessage.role === 'user' && !newUserMessage.bypassLimitCheck) {
+        incrementClientPromptsUsed();
+      }
     } catch (error) {
       console.error("Failed to save user message to history:", error);
       toast({
@@ -107,15 +114,12 @@ export function ChatLayout() {
         title: "History Save Error",
         description: "Could not save your message to history.",
       });
-      // Optionally revert the UI message addition or handle differently
     }
     
-
     let assistantResponse = ""; 
     const assistantMessageId = (Date.now() + 1).toString();
-    let finalAssistantContentForHistory = ""; // To store the complete response or error
+    let finalAssistantContentForHistory = ""; 
 
-    // Add a placeholder for the assistant's message for streaming
     setMessages((prevMessages) => [
       ...prevMessages,
       { id: assistantMessageId, role: "assistant", content: "" }, 
@@ -145,7 +149,6 @@ export function ChatLayout() {
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
         assistantResponse += chunk;
-        // Update the content of the assistant's message placeholder
         setMessages((prevMessages) =>
           prevMessages.map((msg) =>
             msg.id === assistantMessageId
@@ -160,7 +163,6 @@ export function ChatLayout() {
       console.error("Error fetching AI response:", error);
       const errorMessageContent = error instanceof Error ? error.message : "An unexpected error occurred with the AI.";
       
-      // Update the assistant's message placeholder with the error
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
           msg.id === assistantMessageId
@@ -178,14 +180,12 @@ export function ChatLayout() {
     } finally {
       setIsLoading(false);
       
-      // Construct the final assistant message object for history
       const assistantMessageForHistory: Message = {
         id: assistantMessageId,
         role: "assistant",
         content: finalAssistantContentForHistory, 
       };
       
-      // Save the assistant's complete message (or error message) to history
       if (currentUser?.uid && typeof assistantMessageForHistory.content === 'string') {
           addMessageToHistory(currentUser.uid, assistantMessageForHistory)
           .catch(saveError => {
@@ -196,16 +196,14 @@ export function ChatLayout() {
               description: "Could not save assistant's response to history.",
               });
           });
-      } else if (currentUser?.uid) { // Content might be empty string, which is fine.
+      } else if (currentUser?.uid) { 
           console.warn("Attempted to save assistant message with non-string content or missing UID. Message ID:", assistantMessageId, "Content:", assistantMessageForHistory.content);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast, currentUser, userProfile]); // userProfile is a dependency for prompt limits
+  }, [toast, currentUser, userProfile, incrementClientPromptsUsed]); 
 
 
   const handlePromptClick = (promptText: string) => {
-    // Check prompt limit before processing the quick prompt
     if (!currentUser?.uid || !userProfile) {
         toast({
             variant: "destructive",
@@ -214,7 +212,13 @@ export function ChatLayout() {
         });
         return;
     }
-    const { promptLimit = 10, promptsUsed = 0 } = userProfile;
+    const promptLimit = typeof userProfile.promptLimit === 'number' ? userProfile.promptLimit : 10;
+    const promptsUsed = typeof userProfile.promptsUsed === 'number' ? userProfile.promptsUsed : 0;
+
+    if (typeof userProfile.promptLimit !== 'number' || typeof userProfile.promptsUsed !== 'number') {
+        console.warn("ChatLayout (QuickPrompts): promptLimit or promptsUsed is not a number in userProfile.", userProfile);
+    }
+
     if (promptsUsed >= promptLimit) {
         toast({
             variant: "destructive",
@@ -245,3 +249,4 @@ export function ChatLayout() {
     </div>
   );
 }
+

@@ -2,7 +2,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import {
   onAuthStateChanged,
   signOut as firebaseSignOut,
@@ -29,6 +29,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   clearError: () => void;
   hasRole: (role: UserRole | UserRole[]) => boolean;
+  incrementClientPromptsUsed: () => void; // New function
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,7 +41,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<AuthError | Error | null>(null);
   const router = useRouter();
 
-  const clearError = () => setError(null);
+  const clearError = useCallback(() => setError(null), []);
 
   const handleAuthError = (err: unknown) => {
     console.error("Auth Error:", err);
@@ -54,15 +55,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (userAuth) => {
       setLoading(true);
-      setError(null); 
+      setError(null);
       if (userAuth) {
         setCurrentUser(userAuth);
         try {
           const profile = await createUserProfileDocument(userAuth);
           setUserProfile(profile);
         } catch (e) {
-            handleAuthError(e); 
-            setUserProfile(null); 
+            handleAuthError(e);
+            setUserProfile(null);
         }
       } else {
         setCurrentUser(null);
@@ -80,7 +81,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      router.push('/');
+      // onAuthStateChanged will handle profile loading and navigation if router.push('/') is removed here
+      // Forcing navigation might be preferred by some, but letting onAuthStateChanged handle it is cleaner
+      // router.push('/');
     } catch (err) {
       handleAuthError(err);
     } finally {
@@ -93,16 +96,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     try {
       await createUserWithEmailAndPassword(auth, email, password);
-      // Successful creation: onAuthStateChanged handles profile and should lead to navigation.
+      // onAuthStateChanged handles profile and should lead to navigation.
       // router.push('/'); // Let onAuthStateChanged and profile logic handle navigation
     } catch (creationError: any) {
       if (creationError.code === 'auth/email-already-in-use') {
-        setError(null); // Clear the "email-already-in-use" error message
+        setError(null); 
         try {
-          await signInWithEmail(email, password); // This will push to '/' on success
-          // If signInWithEmail is successful, navigation happens within it.
+          await signInWithEmail(email, password); 
         } catch (signInFailureError: any) {
-          // signInWithEmail re-threw an error (e.g., auth/wrong-password)
           let autoLoginFailedMessage = "This email is already registered. Automatic login failed.";
           if (signInFailureError.code === 'auth/wrong-password') {
             autoLoginFailedMessage = "This email is already registered. We tried to log you in, but the password was incorrect. Please try logging in manually.";
@@ -112,7 +113,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setError({ name: "AuthError", code: "auth/auto-login-failed", message: autoLoginFailedMessage } as AuthError);
         }
       } else {
-        // Other signup errors
         handleAuthError(creationError);
       }
     } finally {
@@ -125,10 +125,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push('/');
+      // onAuthStateChanged handles profile update, router.push('/') can be here or handled by useEffect in page
+      router.push('/'); 
     } catch (err) {
       handleAuthError(err);
-      throw err; // Re-throw the error to be caught by the caller if needed (e.g., signUpWithEmail)
+      throw err; 
     } finally {
       setLoading(false);
     }
@@ -141,7 +142,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await firebaseSignOut(auth);
       setCurrentUser(null);
       setUserProfile(null);
-      sessionStorage.removeItem("chatMessages");
+      sessionStorage.removeItem("chatMessages"); // Consider removing if fully reliant on Firestore history
       router.push('/login');
     } catch (err) {
       handleAuthError(err);
@@ -150,14 +151,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const hasRole = (rolesToCheck: UserRole | UserRole[]): boolean => {
+  const hasRole = useCallback((rolesToCheck: UserRole | UserRole[]): boolean => {
     if (!userProfile || !userProfile.role) return false;
     const rolesArray = Array.isArray(rolesToCheck) ? rolesToCheck : [rolesToCheck];
     return rolesArray.includes(userProfile.role);
-  };
+  }, [userProfile]);
+
+  const incrementClientPromptsUsed = useCallback(() => {
+    setUserProfile(prevProfile => {
+      if (!prevProfile) return null;
+      // Ensure promptsUsed is treated as a number, defaulting to 0 if undefined/null
+      const currentPromptsUsed = typeof prevProfile.promptsUsed === 'number' ? prevProfile.promptsUsed : 0;
+      return { ...prevProfile, promptsUsed: currentPromptsUsed + 1 };
+    });
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ currentUser, userProfile, loading, error, signInWithGoogle, signUpWithEmail, signInWithEmail, signOut, clearError, hasRole }}>
+    <AuthContext.Provider value={{ currentUser, userProfile, loading, error, signInWithGoogle, signUpWithEmail, signInWithEmail, signOut, clearError, hasRole, incrementClientPromptsUsed }}>
       {children}
     </AuthContext.Provider>
   );
