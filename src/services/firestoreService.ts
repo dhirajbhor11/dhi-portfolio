@@ -80,7 +80,7 @@ export const addMessageToHistory = async (uid: string, message: Message): Promis
     return;
   }
   const userRef = doc(db, 'users', uid);
-  const MAX_HISTORY_LENGTH = 20;
+  const MAX_HISTORY_LENGTH = 20; // Covers 10 user prompts and 10 assistant replies
 
   try {
     await runTransaction(db, async (transaction) => {
@@ -88,24 +88,21 @@ export const addMessageToHistory = async (uid: string, message: Message): Promis
       let userData: UserProfile;
 
       if (!userDoc.exists()) {
-        console.warn(`User profile for UID: ${uid} does not exist. Cannot add message to history or update prompt count.`);
-        // Optionally, you could attempt to create a basic profile here, but it's better handled at login/signup
-        // For now, we'll just return to prevent errors.
-        // If this happens, it indicates an issue with the user creation flow.
+        console.warn(`User profile for UID: ${uid} does not exist. Attempting to create a basic profile.`);
+        // This scenario should ideally be rare if createUserProfileDocument runs correctly on signup/login
         const tempProfile: UserProfile = {
              uid,
-             email: null, 
-             displayName: null,
+             email: message.role === 'user' ? (message.name || null) : null, // Attempt to get email if it's a user message
+             displayName: message.role === 'user' ? message.name : null,
              role: DEFAULT_ROLE,
              createdAt: serverTimestamp(),
              photoURL: null,
              chatHistory: [message],
-             promptLimit: 10,
-             promptsUsed: message.role === 'user' ? 1 : 0,
+             promptLimit: 10, // Default limit for newly created profile
+             promptsUsed: (message.role === 'user' && !message.bypassLimitCheck) ? 1 : 0,
         };
         transaction.set(userRef, tempProfile);
         userData = tempProfile;
-        // return; // If strictly only updating existing users
       } else {
         userData = userDoc.data() as UserProfile;
       }
@@ -114,26 +111,22 @@ export const addMessageToHistory = async (uid: string, message: Message): Promis
       const newHistory = [...currentHistory, message];
       const trimmedHistory = newHistory.slice(-MAX_HISTORY_LENGTH);
       
-      const updateData: Partial<UserProfile> & { promptsUsed?: any } = { chatHistory: trimmedHistory };
+      // Prepare data for Firestore update
+      const updateData: { chatHistory: Message[]; promptsUsed?: any } = { 
+        chatHistory: trimmedHistory 
+      };
 
-      if (message.role === 'user') {
-        // Atomically increment promptsUsed
-        // Ensure promptsUsed is a number before incrementing
-        const currentPromptsUsed = typeof userData.promptsUsed === 'number' ? userData.promptsUsed : 0;
-        if ((currentPromptsUsed < (userData.promptLimit ?? 10)) || message.bypassLimitCheck) { // Allow saving even if over limit, check happens in UI
-             updateData.promptsUsed = increment(1);
-        } else if (currentPromptsUsed >= (userData.promptLimit ?? 10) && !message.bypassLimitCheck) {
-            // If promptsUsed is already at or over the limit, and this isn't a bypass, don't increment.
-            // The UI should prevent this message from being sent, but this is a server-side safeguard.
-            // We still save the message to history for record keeping if it somehow got here.
-            console.warn(`User ${uid} is over prompt limit, but message saving was attempted.`)
-        }
+      // Increment promptsUsed in Firestore only for user messages that are not bypassed
+      if (message.role === 'user' && !message.bypassLimitCheck) {
+        updateData.promptsUsed = increment(1);
       }
+      
       transaction.update(userRef, updateData);
     });
   } catch (error) {
     console.error(`Error in addMessageToHistory for UID ${uid}:`, error);
-    throw error;
+    // Propagate the error so the caller (ChatLayout) can handle it, e.g., show a toast
+    throw error; 
   }
 };
 
@@ -149,7 +142,7 @@ export const getChatHistory = async (uid: string): Promise<Message[]> => {
     return [];
   } catch (error) {
     console.error("Error fetching chat history:", error);
-    return [];
+    return []; // Return empty array on error to prevent breaking UI
   }
 };
 
@@ -161,6 +154,7 @@ export const resetPromptsUsed = async (uid: string): Promise<void> => {
     await updateDoc(userRef, {
       promptsUsed: 0
     });
+    // If you have local state for userProfile in AuthContext, you'd want to update it here too.
   } catch (error) {
     console.error(`Error resetting prompts used for UID ${uid}:`, error);
     throw error;
@@ -178,6 +172,7 @@ export const updateUserPromptLimit = async (uid: string, newLimit: number): Prom
     await updateDoc(userRef, {
       promptLimit: newLimit
     });
+    // If you have local state for userProfile in AuthContext, you'd want to update it here too.
   } catch (error) {
     console.error(`Error updating prompt limit for UID ${uid}:`, error);
     throw error;
