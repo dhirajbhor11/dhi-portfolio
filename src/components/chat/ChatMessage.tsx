@@ -12,6 +12,7 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   name?: string; // Optional name for avatar fallback
+  bypassLimitCheck?: boolean; // Internal flag, not for UI
 }
 
 interface ChatMessageProps {

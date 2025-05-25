@@ -19,13 +19,11 @@ const initialWelcomeMessage: Message = {
   content: "Hello! I'm PersonaLink AI, your guide to this portfolio. Feel free to ask me anything about the owner's skills, experience, or projects. How can I help you today?",
 };
 
-const DEFAULT_PROMPT_LIMIT = 10;
-
 export function ChatLayout() {
   const [messages, setMessages] = useState<Message[]>([initialWelcomeMessage]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const { currentUser } = useAuth(); 
+  const { currentUser, userProfile } = useAuth(); 
 
   const messagesRef = useRef<Message[]>(messages);
   useEffect(() => {
@@ -63,22 +61,24 @@ export function ChatLayout() {
 
 
   const handleSendMessage = useCallback(async (inputText: string) => {
-    if (!currentUser?.uid) {
+    if (!currentUser?.uid || !userProfile) {
         toast({
             variant: "destructive",
             title: "Authentication Error",
-            description: "You must be logged in to send messages.",
+            description: "You must be logged in and profile loaded to send messages.",
         });
         return;
     }
 
-    const userMessagesCount = messages.filter(msg => msg.role === 'user').length;
+    // Use promptLimit and promptsUsed from userProfile
+    const { promptLimit = 10, promptsUsed = 0 } = userProfile;
 
-    if (userMessagesCount >= DEFAULT_PROMPT_LIMIT) {
+
+    if (promptsUsed >= promptLimit) {
         toast({
             variant: "destructive",
             title: "Chat Limit Reached",
-            description: `You have reached your ${DEFAULT_PROMPT_LIMIT} prompt limit.`,
+            description: `You have reached your ${promptLimit} prompt limit.`,
         });
         return;
     }
@@ -93,6 +93,7 @@ export function ChatLayout() {
     setIsLoading(true);
 
     try {
+      // Saving user message also increments promptsUsed in Firestore
       await addMessageToHistory(currentUser.uid, newUserMessage);
     } catch (error) {
       console.error("Failed to save user message to history:", error);
@@ -101,6 +102,7 @@ export function ChatLayout() {
         title: "History Save Error",
         description: "Could not save your message to history.",
       });
+      // Optionally revert the UI change or handle differently
     }
     
 
@@ -110,7 +112,7 @@ export function ChatLayout() {
 
     setMessages((prevMessages) => [
       ...prevMessages,
-      { id: assistantMessageId, role: "assistant", content: "" },
+      { id: assistantMessageId, role: "assistant", content: "" }, // Placeholder for streaming
     ]);
 
     try {
@@ -189,7 +191,7 @@ export function ChatLayout() {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast, currentUser, messages]); 
+  }, [toast, currentUser, userProfile]); // Added userProfile to dependencies
 
 
   const handlePromptClick = (prompt: string) => {
