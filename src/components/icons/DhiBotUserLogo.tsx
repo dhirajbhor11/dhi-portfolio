@@ -33,7 +33,7 @@ interface DhiBotUserLogoProps {
 // ======================================================================
 
 // TODO: Replace this placeholder with the actual path to your logo!
-const USER_LOGO_PATH = "https://placehold.co/64x64.png?text=Logo"; // e.g., "/images/dhi-bot-logo.png"
+const USER_LOGO_PATH = "/images/logo.png"; // e.g., "/images/dhi-bot-logo.png"
 
 export function DhiBotUserLogo({
   className,
@@ -42,7 +42,7 @@ export function DhiBotUserLogo({
   alt = "Dhi-bot Logo",
   ...rest
 }: DhiBotUserLogoProps) {
-  if (USER_LOGO_PATH === "https://placehold.co/64x64.png?text=Logo") {
+  if (USER_LOGO_PATH === "/images/logo.png") {
     // This console warning helps during development if the logo hasn't been set up.
     console.warn(
       "DhiBotUserLogo: Using placeholder logo. Please follow instructions in src/components/icons/DhiBotUserLogo.tsx to set your custom logo."

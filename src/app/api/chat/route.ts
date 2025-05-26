@@ -1,3 +1,4 @@
+
 import { streamChat, type StreamChatInput } from '@/ai/flows/streaming-responses';
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -40,9 +41,11 @@ export async function POST(req: NextRequest) {
       await adminAuth.verifyIdToken(idToken);
       // If verifyIdToken succeeds, the user is authenticated.
       // You can access decodedToken.uid if needed.
-    } catch (authError) {
+    } catch (authError: any) {
       console.error('Firebase token verification failed:', authError);
-      return NextResponse.json({ detail: 'Unauthorized: Invalid token' }, { status: 403 });
+      // Provide a more specific error message if available from Firebase Admin SDK
+      const errorMessage = authError.code ? `Unauthorized: ${authError.code}` : 'Unauthorized: Invalid token';
+      return NextResponse.json({ detail: errorMessage }, { status: 403 });
     }
 
     const { message } = (await req.json()) as { message: string };

@@ -16,7 +16,7 @@ import { addMessageToHistory, getChatHistory } from "@/services/firestoreService
 const initialWelcomeMessage: Message = {
   id: "welcome-message",
   role: "assistant",
-  content: "Hello! I'm Dhi-bot, your guide to this portfolio. Feel free to ask me anything about the owner's skills, experience, or projects. How can I help you today?",
+  content: "Welcome! I’m Dhi-bot, dhiraj's own AI assistant. I’m here to guide you through dhiraj's journey – just ask.",
 };
 
 export function ChatLayout() {
