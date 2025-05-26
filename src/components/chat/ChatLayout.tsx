@@ -250,7 +250,7 @@ export function ChatLayout() {
             <DhiBotUserLogo className="h-10 w-10 text-primary" width={40} height={40} />
             <div>
                 <CardTitle className="text-2xl font-bold">Dhi-bot</CardTitle>
-                <CardDescription>Your interactive guide to this portfolio.</CardDescription>
+                <CardDescription>Dhiraj's Personal AI Assistant.</CardDescription>
             </div>
         </div>
       </CardHeader>

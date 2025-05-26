@@ -71,7 +71,7 @@ export default function SignupPage() {
   return (
     <AuthFormWrapper
       title="Create an Account"
-      description="Join Dhi-bot to create your interactive portfolio chatbot."
+      description="Join Dhi-bot to chat with dhiraj personal ai assistant.."
       footerContent={
         <>
           Already have an account?{' '}
