@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'PersonaLink AI',
-  description: 'Interactive AI Portfolio Chatbot',
+  title: 'Dhi-bot',
+  description: 'Interactive AI Portfolio Chatbot - Dhi-bot',
 };
 
 export default function RootLayout({

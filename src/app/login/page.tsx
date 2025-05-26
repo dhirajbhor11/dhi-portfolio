@@ -59,7 +59,7 @@ export default function LoginPage() {
   return (
     <AuthFormWrapper
       title="Welcome Back!"
-      description="Sign in to access your PersonaLink AI chat."
+      description="Sign in to access your Dhi-bot chat."
       footerContent={
         <>
           Don&apos;t have an account?{' '}

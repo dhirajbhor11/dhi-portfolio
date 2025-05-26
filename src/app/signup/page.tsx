@@ -71,7 +71,7 @@ export default function SignupPage() {
   return (
     <AuthFormWrapper
       title="Create an Account"
-      description="Join PersonaLink AI to create your interactive portfolio chatbot."
+      description="Join Dhi-bot to create your interactive portfolio chatbot."
       footerContent={
         <>
           Already have an account?{' '}

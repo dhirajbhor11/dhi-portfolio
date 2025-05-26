@@ -16,7 +16,7 @@ import { addMessageToHistory, getChatHistory } from "@/services/firestoreService
 const initialWelcomeMessage: Message = {
   id: "welcome-message",
   role: "assistant",
-  content: "Hello! I'm PersonaLink AI, your guide to this portfolio. Feel free to ask me anything about the owner's skills, experience, or projects. How can I help you today?",
+  content: "Hello! I'm Dhi-bot, your guide to this portfolio. Feel free to ask me anything about the owner's skills, experience, or projects. How can I help you today?",
 };
 
 export function ChatLayout() {
@@ -248,7 +248,7 @@ export function ChatLayout() {
          <div className="flex items-center space-x-3">
             <BotIcon className="h-10 w-10 text-primary" />
             <div>
-                <CardTitle className="text-2xl font-bold">PersonaLink AI</CardTitle>
+                <CardTitle className="text-2xl font-bold">Dhi-bot</CardTitle>
                 <CardDescription>Your interactive guide to this portfolio.</CardDescription>
             </div>
         </div>
