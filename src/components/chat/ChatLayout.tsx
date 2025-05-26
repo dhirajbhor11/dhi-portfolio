@@ -25,8 +25,6 @@ export function ChatLayout() {
   const { toast } = useToast();
   const { currentUser, userProfile, incrementClientPromptsUsed } = useAuth(); 
 
-  // Ref to ensure the latest messages state is available in async callbacks if needed,
-  // though direct state usage in useCallback with proper dependencies is preferred.
   const messagesRef = useRef<Message[]>(messages);
   useEffect(() => {
     messagesRef.current = messages;
@@ -40,7 +38,6 @@ export function ChatLayout() {
           if (history.length > 0) {
             setMessages(history);
           } else {
-            // No history, or history is empty, set to welcome message
             setMessages([initialWelcomeMessage]);
           }
         })
@@ -57,11 +54,10 @@ export function ChatLayout() {
           setIsLoading(false);
         });
     } else {
-      // If no user, reset to welcome message (e.g., after logout)
       setMessages([initialWelcomeMessage]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.uid, toast]); // Added toast to dependencies as it's used in .catch
+  }, [currentUser?.uid, toast]);
 
 
   const handleSendMessage = useCallback(async (inputText: string) => {
@@ -74,10 +70,8 @@ export function ChatLayout() {
         return;
     }
 
-    // Use promptLimit and promptsUsed directly from userProfile.
-    // These values should be numbers if profile is loaded correctly.
-    const promptLimit = typeof userProfile.promptLimit === 'number' ? userProfile.promptLimit : 10; // Default if not number
-    const promptsUsed = typeof userProfile.promptsUsed === 'number' ? userProfile.promptsUsed : 0; // Default if not number
+    const promptLimit = typeof userProfile.promptLimit === 'number' ? userProfile.promptLimit : 10;
+    const promptsUsed = typeof userProfile.promptsUsed === 'number' ? userProfile.promptsUsed : 0;
 
     if (typeof userProfile.promptLimit !== 'number' || typeof userProfile.promptsUsed !== 'number') {
         console.warn("ChatLayout: promptLimit or promptsUsed is not a number in userProfile.", userProfile);
@@ -101,9 +95,24 @@ export function ChatLayout() {
     setMessages((prevMessages) => [...prevMessages, newUserMessage]);
     setIsLoading(true);
 
+    let idToken = '';
+    try {
+      idToken = await currentUser.getIdToken();
+    } catch (tokenError) {
+        console.error("Error getting ID token:", tokenError);
+        toast({
+            variant: "destructive",
+            title: "Authentication Error",
+            description: "Could not verify your session. Please try logging in again.",
+        });
+        setIsLoading(false);
+        // Optionally remove the optimistic user message if token fails
+        setMessages(prev => prev.filter(msg => msg.id !== newUserMessage.id));
+        return;
+    }
+
     try {
       await addMessageToHistory(currentUser.uid, newUserMessage);
-      // Increment client-side count if Firestore save was successful for a user message
       if (newUserMessage.role === 'user' && !newUserMessage.bypassLimitCheck) {
         incrementClientPromptsUsed();
       }
@@ -128,7 +137,10 @@ export function ChatLayout() {
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`,
+        },
         body: JSON.stringify({ message: inputText }),
       });
 
@@ -249,4 +261,3 @@ export function ChatLayout() {
     </div>
   );
 }
-

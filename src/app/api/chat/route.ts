@@ -2,6 +2,7 @@ import { streamChat, type StreamChatInput } from '@/ai/flows/streaming-responses
 import { promises as fs } from 'fs';
 import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
+import { adminAuth } from '@/lib/firebaseAdmin';
 
 // Helper to simulate streaming for a non-streaming AI response
 function simulateStream(text: string, delay = 20): ReadableStream<Uint8Array> {
@@ -24,6 +25,26 @@ function simulateStream(text: string, delay = 20): ReadableStream<Uint8Array> {
 
 export async function POST(req: NextRequest) {
   try {
+    // Authenticate the user
+    const authorizationHeader = req.headers.get('Authorization');
+    if (!authorizationHeader || !authorizationHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ detail: 'Unauthorized: Missing or invalid token' }, { status: 401 });
+    }
+    const idToken = authorizationHeader.split('Bearer ')[1];
+
+    try {
+      if (!adminAuth) {
+        console.error("/api/chat: Firebase Admin SDK not initialized. Cannot verify token.");
+        return NextResponse.json({ detail: 'Internal server error: Admin SDK not available' }, { status: 500 });
+      }
+      await adminAuth.verifyIdToken(idToken);
+      // If verifyIdToken succeeds, the user is authenticated.
+      // You can access decodedToken.uid if needed.
+    } catch (authError) {
+      console.error('Firebase token verification failed:', authError);
+      return NextResponse.json({ detail: 'Unauthorized: Invalid token' }, { status: 403 });
+    }
+
     const { message } = (await req.json()) as { message: string };
 
     if (!message) {
