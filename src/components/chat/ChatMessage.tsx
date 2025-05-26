@@ -3,8 +3,8 @@
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { User, Loader2 } from "lucide-react"; // Using Lucide Bot icon
-import { BotIcon } from "@/components/icons/BotIcon";
+import { User, Loader2 } from "lucide-react"; 
+import { DhiBotUserLogo } from "@/components/icons/DhiBotUserLogo";
 
 
 export interface Message {
@@ -32,11 +32,12 @@ export function ChatMessage({ message }: ChatMessageProps) {
         )}
       >
         <Avatar className="h-8 w-8 shrink-0">
-          <BotIcon className="h-full w-full p-1.5 text-primary" />
+          {/* Using DhiBotUserLogo, ensure it's styled appropriately or use a dedicated loader avatar */}
+          <DhiBotUserLogo className="h-full w-full p-1.5 text-primary" width={32} height={32}/>
         </Avatar>
         <div
           className={cn(
-            "prose prose-sm max-w-none rounded-md p-3 text-sm flex items-center justify-center min-h-[calc(2rem+1.5rem)]", // Adjusted min-height to roughly match text line + padding
+            "prose prose-sm max-w-none rounded-md p-3 text-sm flex items-center justify-center min-h-[calc(2rem+1.5rem)]", 
             "bg-card text-card-foreground"
           )}
           style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
@@ -57,7 +58,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
     >
       {!isUser && (
         <Avatar className="h-8 w-8 shrink-0">
-          <BotIcon className="h-full w-full p-1.5 text-primary" />
+          <DhiBotUserLogo className="h-full w-full p-1.5 text-primary" width={32} height={32} />
         </Avatar>
       )}
       <div
@@ -81,4 +82,3 @@ export function ChatMessage({ message }: ChatMessageProps) {
     </div>
   );
 }
-

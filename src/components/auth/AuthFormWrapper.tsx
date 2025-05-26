@@ -1,7 +1,7 @@
 
 import type { ReactNode } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BotIcon } from '@/components/icons/BotIcon';
+import { DhiBotUserLogo } from '@/components/icons/DhiBotUserLogo';
 
 interface AuthFormWrapperProps {
   title: string;
@@ -16,7 +16,7 @@ export function AuthFormWrapper({ title, description, children, footerContent }:
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 h-16 w-16 text-primary">
-            <BotIcon className="h-full w-full" />
+            <DhiBotUserLogo className="h-full w-full" width={64} height={64} />
           </div>
           <CardTitle className="text-3xl font-bold">{title}</CardTitle>
           <CardDescription>{description}</CardDescription>

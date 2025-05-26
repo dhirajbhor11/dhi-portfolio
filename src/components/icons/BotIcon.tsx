@@ -1,23 +1,6 @@
-import type { SVGProps } from 'react';
-
-export function BotIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M12 8V4H8" />
-      <rect width="16" height="12" x="4" y="8" rx="2" />
-      <path d="M2 14h2" />
-      <path d="M20 14h2" />
-      <path d="M15 13v2" />
-      <path d="M9 13v2" />
-    </svg>
-  );
-}
+// This file is no longer needed and can be deleted.
+// The DhiBotUserLogo.tsx component is used instead.
+// Keeping it empty or deleting it is fine. For safety, I'll make it empty.
+// If you have a build process that checks for existing files referenced elsewhere
+// and this file is truly unreferenced after the changes, you can delete it.
+export {};

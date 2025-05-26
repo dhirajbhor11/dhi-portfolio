@@ -8,7 +8,7 @@ import { QuickPrompts } from "./QuickPrompts";
 import type { Message } from "./ChatMessage";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { BotIcon } from "@/components/icons/BotIcon";
+import { DhiBotUserLogo } from '@/components/icons/DhiBotUserLogo';
 import { useAuth } from "@/contexts/AuthContext";
 import { addMessageToHistory, getChatHistory } from "@/services/firestoreService";
 
@@ -69,19 +69,19 @@ export function ChatLayout() {
         });
         return;
     }
-
-    const promptLimit = typeof userProfile.promptLimit === 'number' ? userProfile.promptLimit : 10;
-    const promptsUsed = typeof userProfile.promptsUsed === 'number' ? userProfile.promptsUsed : 0;
+    
+    const currentPromptLimit = typeof userProfile.promptLimit === 'number' ? userProfile.promptLimit : 10;
+    const currentPromptsUsed = typeof userProfile.promptsUsed === 'number' ? userProfile.promptsUsed : 0;
 
     if (typeof userProfile.promptLimit !== 'number' || typeof userProfile.promptsUsed !== 'number') {
-        console.warn("ChatLayout: promptLimit or promptsUsed is not a number in userProfile.", userProfile);
+      console.warn("ChatLayout: promptLimit or promptsUsed is not a number in userProfile. Using defaults for check.", userProfile);
     }
     
-    if (promptsUsed >= promptLimit) {
+    if (currentPromptsUsed >= currentPromptLimit) {
         toast({
             variant: "destructive",
             title: "Chat Limit Reached",
-            description: `You have reached your ${promptLimit} prompt limit.`,
+            description: `You have reached your ${currentPromptLimit} prompt limit.`,
         });
         return; 
     }
@@ -114,7 +114,7 @@ export function ChatLayout() {
     try {
       await addMessageToHistory(currentUser.uid, newUserMessage);
       if (newUserMessage.role === 'user' && !newUserMessage.bypassLimitCheck) {
-        incrementClientPromptsUsed();
+        incrementClientPromptsUsed(); // Update client-side count
       }
     } catch (error) {
       console.error("Failed to save user message to history:", error);
@@ -123,12 +123,14 @@ export function ChatLayout() {
         title: "History Save Error",
         description: "Could not save your message to history.",
       });
+      // Continue even if saving fails, so chat is not interrupted
     }
     
-    let assistantResponse = ""; 
+    let assistantResponseAccumulator = ""; 
     const assistantMessageId = (Date.now() + 1).toString();
     let finalAssistantContentForHistory = ""; 
 
+    // Add assistant message placeholder
     setMessages((prevMessages) => [
       ...prevMessages,
       { id: assistantMessageId, role: "assistant", content: "" }, 
@@ -160,30 +162,29 @@ export function ChatLayout() {
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
-        assistantResponse += chunk;
+        assistantResponseAccumulator += chunk;
         setMessages((prevMessages) =>
           prevMessages.map((msg) =>
             msg.id === assistantMessageId
-              ? { ...msg, content: assistantResponse }
+              ? { ...msg, content: assistantResponseAccumulator }
               : msg
           )
         );
       }
-      finalAssistantContentForHistory = assistantResponse; 
+      finalAssistantContentForHistory = assistantResponseAccumulator; 
 
     } catch (error) {
       console.error("Error fetching AI response:", error);
       const errorMessageContent = error instanceof Error ? error.message : "An unexpected error occurred with the AI.";
       
+      finalAssistantContentForHistory = `Sorry, I encountered an error: ${errorMessageContent}`; 
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
           msg.id === assistantMessageId
-            ? { ...msg, content: `Sorry, I encountered an error: ${errorMessageContent}` }
+            ? { ...msg, content: finalAssistantContentForHistory }
             : msg
         )
       );
-      finalAssistantContentForHistory = `Sorry, I encountered an error: ${errorMessageContent}`; 
-
       toast({
         variant: "destructive",
         title: "AI Response Error",
@@ -195,7 +196,7 @@ export function ChatLayout() {
       const assistantMessageForHistory: Message = {
         id: assistantMessageId,
         role: "assistant",
-        content: finalAssistantContentForHistory, 
+        content: finalAssistantContentForHistory, // Use the determined final content
       };
       
       if (currentUser?.uid && typeof assistantMessageForHistory.content === 'string') {
@@ -224,18 +225,18 @@ export function ChatLayout() {
         });
         return;
     }
-    const promptLimit = typeof userProfile.promptLimit === 'number' ? userProfile.promptLimit : 10;
-    const promptsUsed = typeof userProfile.promptsUsed === 'number' ? userProfile.promptsUsed : 0;
+    const currentPromptLimit = typeof userProfile.promptLimit === 'number' ? userProfile.promptLimit : 10;
+    const currentPromptsUsed = typeof userProfile.promptsUsed === 'number' ? userProfile.promptsUsed : 0;
 
     if (typeof userProfile.promptLimit !== 'number' || typeof userProfile.promptsUsed !== 'number') {
-        console.warn("ChatLayout (QuickPrompts): promptLimit or promptsUsed is not a number in userProfile.", userProfile);
+        console.warn("ChatLayout (QuickPrompts): promptLimit or promptsUsed is not a number in userProfile. Using defaults for check.", userProfile);
     }
 
-    if (promptsUsed >= promptLimit) {
+    if (currentPromptsUsed >= currentPromptLimit) {
         toast({
             variant: "destructive",
             title: "Chat Limit Reached",
-            description: `You have reached your ${promptLimit} prompt limit. Cannot use quick prompt.`,
+            description: `You have reached your ${currentPromptLimit} prompt limit. Cannot use quick prompt.`,
         });
         return;
     }
@@ -246,7 +247,7 @@ export function ChatLayout() {
     <div className="flex flex-col h-screen max-w-3xl mx-auto bg-background shadow-xl rounded-lg overflow-hidden">
       <CardHeader className="p-4 md:p-6 border-b">
          <div className="flex items-center space-x-3">
-            <BotIcon className="h-10 w-10 text-primary" />
+            <DhiBotUserLogo className="h-10 w-10 text-primary" width={40} height={40} />
             <div>
                 <CardTitle className="text-2xl font-bold">Dhi-bot</CardTitle>
                 <CardDescription>Your interactive guide to this portfolio.</CardDescription>
