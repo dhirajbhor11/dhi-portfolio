@@ -9,7 +9,13 @@ if (typeof window === 'undefined') {
       // For local development, you MUST set the GOOGLE_APPLICATION_CREDENTIALS
       // environment variable to the path of your service account key JSON file.
       // You can download this file from Firebase Project Settings > Service accounts.
-      admin.initializeApp();
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined,
+        }),
+      });
       console.log('Firebase Admin SDK initialized');
     } catch (error: any) {
       console.error('Firebase Admin SDK initialization error:', error.stack);
